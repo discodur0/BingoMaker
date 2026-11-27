@@ -74,8 +74,12 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
   <label for="style">Link style</label>
   <select id="style">
     <option value="long">Self-contained (long links, no setup)</option>
-    <option value="short">Short links (/1, /2, …) – needs cards.json</option>
+    <option value="short">Short links (/name/1, /name/2, …) – needs cards.json</option>
   </select>
+
+  <label for="slug">Link name</label>
+  <input type="text" id="slug" value="bingo" maxlength="40">
+  <p class="hint">Used by short links and as the folder name, like <code>…/<span id="slugprev">bingo</span>/1</code>. Use a different name for each game so old games keep working.</p>
 
   <p class="err" id="err" role="alert"></p>
   <button id="gen">Generate links</button>
@@ -92,7 +96,11 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
     </div>
 
     <div class="hint" id="shortnote" hidden>
-      <p><b>To make the short links work:</b> download <code>cards.json</code>, add it to the root of your repo next to <code>index.html</code>, and also add a copy of <code>index.html</code> named <code>404.html</code> (that’s what lets <code>/1</code> and <code>/play</code> work on GitHub Pages). Commit, wait a minute, and the links go live. Generating again replaces the old cards, so re-upload the file each time.</p>
+      <p><b>To make the short links work:</b></p>
+      <p>1. Download <code>cards.json</code> and put it in a new folder named <code id="sn"></code> in the root of your repo, so it ends up at <code id="sp"></code>.<br>
+      2. Once ever, add a copy of <code>index.html</code> named <code>404.html</code> (that’s what lets <code>/name/1</code> and <code>/name/play</code> open on GitHub Pages).<br>
+      3. Commit and wait a minute.</p>
+      <p>New games with a different link name are just another folder, so earlier games keep working.</p>
       <button class="alt" id="dl">Download cards.json</button>
     </div>
     <p class="hint">Marks are saved in each player’s own browser.</p>
@@ -129,7 +137,14 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
   function rnd(n){var a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n}
   function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(i+1),t=a[i];a[i]=a[j];a[j]=t}return a}
 
-  function dirPath(){var p=location.pathname;return /\/(\d+|play)\/?$/.test(p)?p.replace(/(\d+|play)\/?$/,""):p.replace(/[^/]*$/,"")}
+  function route(){
+    var h=location.hash.slice(1),m=h.match(/^([a-z0-9-]+)\/(\d+|play)$/);
+    if(m)return {slug:m[1],id:m[2],dir:location.pathname.replace(/[^/]*$/,"")};
+    m=location.pathname.match(/^(.*\/)([a-z0-9-]+)\/(\d+|play)\/?$/);
+    return m?{slug:m[2],id:m[3],dir:m[1]}:null;
+  }
+  function dirPath(){var r=route();return r?r.dir:location.pathname.replace(/[^/]*$/,"")}
+  function slugify(t){return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)}
   function dirUrl(){return location.origin+dirPath()}
   function hash(str){var h=5381;for(var i=0;i<str.length;i++)h=((h<<5)+h+str.charCodeAt(i))|0;return (h>>>0).toString(36)}
   function baseUrl(){return location.href.split("#")[0]}
@@ -153,16 +168,17 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
     links=[];cards=[];
     var fl=$("freelabel").value.trim()||"Free",short=$("style").value==="short";
     var deck={t:title,n:n,i:items,f:fl,u:useFree?1:0};deckObj=deck;
-    var rurl=short?dirUrl()+"play":baseUrl()+"#r="+enc(deck);
+    var slug=slugify($("slug").value)||slugify(title)||"bingo";
+    var rurl=short?dirUrl()+slug+"/play":baseUrl()+"#r="+enc(deck);
     for(var c=0;c<num;c++){
       var pick=shuffle(items).slice(0,need),cells=[];
       for(var i=0;i<n*n;i++){
         if(useFree&&i===(n*n-1)/2)cells.push(null);else cells.push(pick.shift());
       }
       var cd={t:title,n:n,c:cells,f:fl};cards.push(cd);
-      links.push(short?dirUrl()+(c+1):baseUrl()+"#"+enc(cd));
+      links.push(short?dirUrl()+slug+"/"+(c+1):baseUrl()+"#"+enc(cd));
     }
-    $("shortnote").hidden=!short;
+    $("shortnote").hidden=!short;$("sn").textContent=slug+"/";$("sp").textContent=slug+"/cards.json";
     $("rlink").innerHTML="";addRow($("rlink"),"",rurl,"Random card link");
     var box=$("links");box.innerHTML="";
     links.forEach(function(u,i){addRow(box,i+1,u,"Link for card "+(i+1))});
@@ -191,6 +207,9 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
     var t=document.createElement("textarea");t.value=text;document.body.appendChild(t);t.select();
     try{document.execCommand("copy");done()}catch(e){}t.remove();
   }
+  var slugEdited=false;
+  $("slug").addEventListener("input",function(){slugEdited=true;$("slugprev").textContent=slugify(this.value)||"bingo"});
+  $("title").addEventListener("input",function(){if(!slugEdited){var v=slugify(this.value)||"bingo";$("slug").value=v;$("slugprev").textContent=v}});
   $("dl").onclick=function(){
     var a=document.createElement("a");
     a.href=URL.createObjectURL(new Blob([JSON.stringify({deck:deckObj,cards:cards})],{type:"application/json"}));
@@ -219,7 +238,6 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
     }
     $("banner").textContent=won.length?"Bingo!":"";
   }
-  function shortId(){var h=location.hash.slice(1);if(/^(\d+|play)$/.test(h))return h;var m=location.pathname.match(/\/(\d+|play)\/?$/);return m?m[1]:null}
   function deal(d){
     var k="bingo:deal:"+hash(JSON.stringify(d));
     try{var v=JSON.parse(localStorage.getItem(k));if(v&&v.c)return v}catch(e){}
@@ -233,12 +251,12 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
   }
   function showMake(msg){$("play").hidden=true;$("make").hidden=false;$("err").textContent=msg||""}
   function showPlay(){
-    var id=shortId();
+    var rt=route(),id=rt&&rt.id;
     if(id){
-      fetch(dirPath()+"cards.json").then(function(r){if(!r.ok)throw 0;return r.json()})
+      fetch(rt.dir+rt.slug+"/cards.json").then(function(r){if(!r.ok)throw 0;return r.json()})
         .then(function(data){
-          if(id==="play")return start(deal(data.deck),"play");
-          var c=data.cards[+id-1];if(!c)throw 0;start(c,"s"+id)})
+          if(id==="play")return start(deal(data.deck),rt.slug+"/play");
+          var c=data.cards[+id-1];if(!c)throw 0;start(c,rt.slug+"/"+id)})
         .catch(function(){showMake("That card wasn’t found. Make sure cards.json is uploaded.")});
       return;
     }
