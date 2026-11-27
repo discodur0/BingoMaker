@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bingo Card Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1f6;--surface:#fff;--ink:#1b2340;--muted:#5b6482;--line:#cfd5e4;--daub:#d6246e;--daub-ink:#fff;--free:#f2b632;--free-ink:#1b2340}
+@media (prefers-color-scheme:dark){:root{--bg:#12162a;--surface:#1c2140;--ink:#eef0fa;--muted:#9aa3c7;--line:#343b66;--daub:#ff4d94;--daub-ink:#1b0b14;--free:#f2b632;--free-ink:#1b2340}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.45;padding:24px 16px 48px}
+main{max-width:640px;margin:0 auto}
+h1{font-size:clamp(2rem,7vw,3rem);font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:0 0 8px}
+p.lead{color:var(--muted);margin:0 0 24px}
+label{display:block;font-weight:600;margin:16px 0 6px}
+input,textarea,select,button{font:inherit;color:inherit}
+input[type=text],input[type=number],textarea,select{width:100%;padding:10px 12px;background:var(--surface);border:2px solid var(--line);border-radius:8px}
+textarea{min-height:200px;resize:vertical}
+:focus-visible{outline:3px solid var(--daub);outline-offset:2px}
+.row{display:flex;gap:12px;flex-wrap:wrap}.row>div{flex:1;min-width:120px}
+.check{display:flex;align-items:center;gap:8px;font-weight:400;margin:16px 0 0}
+button{cursor:pointer;border:0;border-radius:8px;padding:11px 18px;font-weight:600;background:var(--daub);color:var(--daub-ink)}
+button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
+.hint{font-size:.9rem;color:var(--muted);margin:6px 0 0}
+.err{color:var(--daub);font-weight:600;margin:12px 0 0;min-height:1.4em}
+#results{margin-top:32px}
+.res-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.res-head>div{display:flex;gap:8px;flex-wrap:wrap}
+.res-head h2{margin:0;font-size:1.4rem}
+.link{display:flex;gap:8px;align-items:center;margin:8px 0}
+.link b{min-width:2.2em}
+.link input{flex:1;min-width:0;font-size:.85rem;padding:8px 10px}
+.link a{font-size:.9rem;color:var(--muted)}
+.grid{display:grid;gap:6px;margin:20px 0}
+.cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;text-align:center;padding:4px;font-size:clamp(.65rem,2.6vw,.95rem);line-height:1.15;font-weight:600;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:10px;overflow-wrap:anywhere;hyphens:auto;user-select:none}
+.cell.free{background:var(--free);color:var(--free-ink);border-color:var(--free)}
+.cell[aria-pressed=true]{background:var(--daub);color:var(--daub-ink);border-color:var(--daub);transform:scale(.96)}
+.cell.win{box-shadow:0 0 0 3px var(--ink)}
+.banner{font-size:1.6rem;font-weight:800;text-align:center;margin:0;min-height:2.2rem}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:no-preference){.cell{transition:transform .08s,background .12s}}
+</style>
+</head>
+<body>
+<main>
+
+<section id="make">
+  <h1>Bingo card generator</h1>
+  <p class="lead">Add your squares, pick how many cards you need, and send each person their own link.</p>
+
+  <label for="title">Card title</label>
+  <input type="text" id="title" value="Bingo" maxlength="60">
+
+  <label for="items">Squares (one per line)</label>
+  <textarea id="items" placeholder="Someone says “you’re on mute”&#10;Dog barks in the background&#10;…"></textarea>
+  <p class="hint" id="count"></p>
+
+  <div class="row">
+    <div><label for="size">Grid size</label>
+      <select id="size"><option value="3">3 × 3</option><option value="4">4 × 4</option><option value="5" selected>5 × 5</option></select></div>
+    <div id="numbox"><label for="num">Individual cards (0 for none)</label>
+      <input type="number" id="num" min="0" max="200" value="5"></div>
+  </div>
+  <label class="check"><input type="checkbox" id="free" checked> Free space in the center (odd grids only)</label>
+
+  <label for="freelabel">Free space label</label>
+  <input type="text" id="freelabel" value="Free" maxlength="20">
+
+  <label for="style">Link style</label>
+  <select id="style">
+    <option value="long">Self-contained (long links, no setup)</option>
+    <option value="short">Short links (/name/1, /name/2, …) – needs cards.json</option>
+  </select>
+
+  <label for="slug">Link name</label>
+  <input type="text" id="slug" value="bingo" maxlength="40">
+  <p class="hint">Used by short links and as the folder name, like <code>…/<span id="slugprev">bingo</span>/1</code>. Use a different name for each game so old games keep working.</p>
+
+  <p class="err" id="err" role="alert"></p>
+  <button id="gen">Generate links</button>
+
+  <div id="results" hidden>
+    <div class="res-head"><h2>Random card link</h2></div>
+    <p class="hint">Send this one to everyone. Each person who opens it gets their own randomly dealt card.</p>
+    <div id="rlink"></div>
+
+    <div id="indiv">
+      <div class="res-head" style="margin-top:28px"><h2 id="rcount"></h2><div><button class="alt" id="copyall">Copy all links</button></div></div>
+      <p class="hint">Fixed cards, one per link, if you want to hand out specific cards.</p>
+      <div id="links"></div>
+    </div>
+
+    <div class="hint" id="shortnote" hidden>
+      <p><b>To make the short links work:</b></p>
+      <p>1. Download <code>cards.json</code> and put it in a new folder named <code id="sn"></code> in the root of your repo, so it ends up at <code id="sp"></code>.<br>
+      2. Once ever, add a copy of <code>index.html</code> named <code>404.html</code> (that’s what lets <code>/name/1</code> and <code>/name/play</code> open on GitHub Pages).<br>
+      3. Commit and wait a minute.</p>
+      <p>New games with a different link name are just another folder, so earlier games keep working.</p>
+      <button class="alt" id="dl">Download cards.json</button>
+    </div>
+    <p class="hint">Marks are saved in each player’s own browser.</p>
+  </div>
+</section>
+
+<section id="play" hidden>
+  <div class="top"><h1 id="ptitle"></h1><button class="alt" id="reset">Clear marks</button></div>
+  <div class="grid" id="board" role="group" aria-label="Bingo card"></div>
+  <p class="banner" id="banner" aria-live="polite"></p>
+  <p class="hint"><a href="#" id="home">Make your own cards</a></p>
+</section>
+
+</main>
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+
+  // ---- encoding: card -> URL-safe string ----
+  function enc(obj){
+    var bytes=new TextEncoder().encode(JSON.stringify(obj)),s="";
+    for(var i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  }
+  function dec(str){
+    str=str.replace(/-/g,"+").replace(/_/g,"/");
+    while(str.length%4)str+="=";
+    var bin=atob(str),bytes=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+
+  // ---- random shuffle ----
+  function rnd(n){var a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n}
+  function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(i+1),t=a[i];a[i]=a[j];a[j]=t}return a}
+
+  function route(){
+    var h=location.hash.slice(1),m=h.match(/^([a-z0-9-]+)\/(\d+|play)$/);
+    if(m)return {slug:m[1],id:m[2],dir:location.pathname.replace(/[^/]*$/,"")};
+    m=location.pathname.match(/^(.*\/)([a-z0-9-]+)\/(\d+|play)\/?$/);
+    return m?{slug:m[2],id:m[3],dir:m[1]}:null;
+  }
+  function dirPath(){var r=route();return r?r.dir:location.pathname.replace(/[^/]*$/,"")}
+  function slugify(t){return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)}
+  function dirUrl(){return location.origin+dirPath()}
+  function hash(str){var h=5381;for(var i=0;i<str.length;i++)h=((h<<5)+h+str.charCodeAt(i))|0;return (h>>>0).toString(36)}
+  function baseUrl(){return location.href.split("#")[0]}
+  function lines(){return $("items").value.split("\n").map(function(s){return s.trim()}).filter(Boolean)}
+  function needed(){var n=+$("size").value,useFree=$("free").checked&&n%2===1;return n*n-(useFree?1:0)}
+  function updateCount(){
+    var have=new Set(lines()).size;
+    $("count").textContent=have+" squares entered, "+needed()+" needed per card. Extra squares make each card different.";
+  }
+
+  // ---- generator ----
+  var links=[],cards=[],deckObj=null;
+  $("gen").onclick=function(){
+    var err=$("err");err.textContent="";
+    var n=+$("size").value,useFree=$("free").checked&&n%2===1;
+    var items=Array.from(new Set(lines()));
+    var need=n*n-(useFree?1:0);
+    var num=Math.max(0,Math.min(200,parseInt($("num").value,10)||0));
+    if(items.length<need){err.textContent="Add at least "+need+" different squares ("+items.length+" so far).";return}
+    var title=$("title").value.trim()||"Bingo";
+    links=[];cards=[];
+    var fl=$("freelabel").value.trim()||"Free",short=$("style").value==="short";
+    var deck={t:title,n:n,i:items,f:fl,u:useFree?1:0};deckObj=deck;
+    var slug=slugify($("slug").value)||slugify(title)||"bingo";
+    var rurl=short?dirUrl()+slug+"/play":baseUrl()+"#r="+enc(deck);
+    for(var c=0;c<num;c++){
+      var pick=shuffle(items).slice(0,need),cells=[];
+      for(var i=0;i<n*n;i++){
+        if(useFree&&i===(n*n-1)/2)cells.push(null);else cells.push(pick.shift());
+      }
+      var cd={t:title,n:n,c:cells,f:fl};cards.push(cd);
+      links.push(short?dirUrl()+slug+"/"+(c+1):baseUrl()+"#"+enc(cd));
+    }
+    $("shortnote").hidden=!short;$("sn").textContent=slug+"/";$("sp").textContent=slug+"/cards.json";
+    $("rlink").innerHTML="";addRow($("rlink"),"",rurl,"Random card link");
+    var box=$("links");box.innerHTML="";
+    links.forEach(function(u,i){addRow(box,i+1,u,"Link for card "+(i+1))});
+    $("indiv").hidden=!num;
+    $("rcount").textContent=num+(num===1?" individual card":" individual cards");
+    $("results").hidden=false;
+    $("results").scrollIntoView({behavior:"smooth"});
+  };
+  function addRow(box,label,u,aria){
+    var d=document.createElement("div");d.className="link";
+    var b=document.createElement("b");b.textContent=label;
+    var inp=document.createElement("input");inp.type="text";inp.readOnly=true;inp.value=u;
+    inp.setAttribute("aria-label",aria);
+    inp.onfocus=function(){inp.select()};
+    var cp=document.createElement("button");cp.className="alt";cp.textContent="Copy";
+    cp.onclick=function(){copy(u,cp)};
+    var a=document.createElement("a");a.href=u;a.target="_blank";a.rel="noopener";a.textContent="Preview";
+    d.append(b,inp,cp,a);box.appendChild(d);
+  }
+  function copy(text,btn){
+    var done=function(){var o=btn.textContent;btn.textContent="Copied";setTimeout(function(){btn.textContent=o},1200)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,function(){fallback(text,done)})}
+    else fallback(text,done);
+  }
+  function fallback(text,done){
+    var t=document.createElement("textarea");t.value=text;document.body.appendChild(t);t.select();
+    try{document.execCommand("copy");done()}catch(e){}t.remove();
+  }
+  var slugEdited=false;
+  $("slug").addEventListener("input",function(){slugEdited=true;$("slugprev").textContent=slugify(this.value)||"bingo"});
+  $("title").addEventListener("input",function(){if(!slugEdited){var v=slugify(this.value)||"bingo";$("slug").value=v;$("slugprev").textContent=v}});
+  $("dl").onclick=function(){
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([JSON.stringify({deck:deckObj,cards:cards})],{type:"application/json"}));
+    a.download="cards.json";document.body.appendChild(a);a.click();a.remove();
+  };
+  $("copyall").onclick=function(){copy(links.map(function(u,i){return "Card "+(i+1)+": "+u}).join("\n"),$("copyall"))};
+  ["items","size","free"].forEach(function(id){$(id).addEventListener("input",updateCount)});
+  $("size").addEventListener("change",updateCount);
+
+  // ---- player ----
+  var marks=[],card=null,key="";
+  function lines5(n){
+    var L=[],i,j,r,c,d1=[],d2=[];
+    for(i=0;i<n;i++){r=[];c=[];for(j=0;j<n;j++){r.push(i*n+j);c.push(j*n+i)}L.push(r,c);d1.push(i*n+i);d2.push(i*n+(n-1-i))}
+    L.push(d1,d2);return L;
+  }
+  function save(){try{localStorage.setItem(key,JSON.stringify(marks))}catch(e){}}
+  function load(){try{var v=JSON.parse(localStorage.getItem(key));if(Array.isArray(v)&&v.length===card.c.length)return v}catch(e){}return null}
+  function render(){
+    var n=card.n,won=[];
+    lines5(n).forEach(function(L){if(L.every(function(i){return marks[i]}))won=won.concat(L)});
+    var cells=$("board").children;
+    for(var i=0;i<cells.length;i++){
+      cells[i].setAttribute("aria-pressed",marks[i]?"true":"false");
+      cells[i].classList.toggle("win",won.indexOf(i)>-1);
+    }
+    $("banner").textContent=won.length?"Bingo!":"";
+  }
+  function deal(d){
+    var k="bingo:deal:"+hash(JSON.stringify(d));
+    try{var v=JSON.parse(localStorage.getItem(k));if(v&&v.c)return v}catch(e){}
+    var n=d.n,free=d.u&&n%2===1,need=n*n-(free?1:0);
+    if(!Array.isArray(d.i)||d.i.length<need)throw 0;
+    var pick=shuffle(d.i).slice(0,need),cells=[];
+    for(var i=0;i<n*n;i++)cells.push(free&&i===(n*n-1)/2?null:pick.shift());
+    var c={t:d.t,n:n,c:cells,f:d.f};
+    try{localStorage.setItem(k,JSON.stringify(c))}catch(e){}
+    return c;
+  }
+  function showMake(msg){$("play").hidden=true;$("make").hidden=false;$("err").textContent=msg||""}
+  function showPlay(){
+    var rt=route(),id=rt&&rt.id;
+    if(id){
+      fetch(rt.dir+rt.slug+"/cards.json").then(function(r){if(!r.ok)throw 0;return r.json()})
+        .then(function(data){
+          if(id==="play")return start(deal(data.deck),rt.slug+"/play");
+          var c=data.cards[+id-1];if(!c)throw 0;start(c,rt.slug+"/"+id)})
+        .catch(function(){showMake("That card wasn’t found. Make sure cards.json is uploaded.")});
+      return;
+    }
+    if(location.hash.slice(1,3)==="r="){
+      try{start(deal(dec(location.hash.slice(3))),"r")}catch(e){showMake("That link looks broken. Ask for a new one.")}
+      return;
+    }
+    var c=null;try{c=dec(location.hash.slice(1))}catch(e){}
+    if(!c)return showMake(location.hash.length>1?"That card link looks broken. Ask for a new one.":"");
+    start(c,"l");
+  }
+  function start(c,k){
+    card=c;
+    var valid=card&&card.n>=3&&card.n<=5&&Array.isArray(card.c)&&card.c.length===card.n*card.n;
+    if(!valid)return showMake("That card link looks broken. Ask for a new one.");
+    $("make").hidden=true;$("play").hidden=false;
+    document.title=card.t;$("ptitle").textContent=card.t;
+    key="bingo:"+k+":"+hash(card.c.join("|"));
+    var saved=load();
+    marks=saved||card.c.map(function(x){return x===null});
+    var board=$("board");board.innerHTML="";
+    board.style.gridTemplateColumns="repeat("+card.n+",1fr)";
+    card.c.forEach(function(txt,i){
+      var b=document.createElement("button");b.type="button";b.className="cell"+(txt===null?" free":"");
+      b.textContent=txt===null?(card.f||"Free"):String(txt);
+      if(txt===null)marks[i]=true;
+      b.onclick=function(){if(txt===null)return;marks[i]=!marks[i];save();render()};
+      board.appendChild(b);
+    });
+    render();
+  }
+  $("reset").onclick=function(){marks=card.c.map(function(x){return x===null});save();render()};
+  $("home").href=dirUrl();
+  window.addEventListener("hashchange",showPlay);
+
+  updateCount();
+  showPlay();
+})();
+</script>
+</body>
+</html>
