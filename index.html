@@ -63,8 +63,8 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
   <div class="row">
     <div><label for="size">Grid size</label>
       <select id="size"><option value="3">3 × 3</option><option value="4">4 × 4</option><option value="5" selected>5 × 5</option></select></div>
-    <div><label for="num">Number of cards</label>
-      <input type="number" id="num" min="1" max="200" value="5"></div>
+    <div id="numbox"><label for="num">Individual cards (0 for none)</label>
+      <input type="number" id="num" min="0" max="200" value="5"></div>
   </div>
   <label class="check"><input type="checkbox" id="free" checked> Free space in the center (odd grids only)</label>
 
@@ -78,15 +78,24 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
   </select>
 
   <p class="err" id="err" role="alert"></p>
-  <button id="gen">Generate cards</button>
+  <button id="gen">Generate links</button>
 
   <div id="results" hidden>
-    <div class="res-head"><h2 id="rcount"></h2><div><button class="alt" id="dl" hidden>Download cards.json</button> <button class="alt" id="copyall">Copy all links</button></div></div>
-    <div class="hint" id="shortnote" hidden>
-      <p><b>To make the short links work:</b> download <code>cards.json</code>, add it to the root of your repo next to <code>index.html</code>, and also add a copy of <code>index.html</code> named <code>404.html</code> (that’s what lets <code>/1</code> work on GitHub Pages). Commit, wait a minute, and the links go live. Generating again replaces the old cards, so re-upload the file each time.</p>
+    <div class="res-head"><h2>Random card link</h2></div>
+    <p class="hint">Send this one to everyone. Each person who opens it gets their own randomly dealt card.</p>
+    <div id="rlink"></div>
+
+    <div id="indiv">
+      <div class="res-head" style="margin-top:28px"><h2 id="rcount"></h2><div><button class="alt" id="copyall">Copy all links</button></div></div>
+      <p class="hint">Fixed cards, one per link, if you want to hand out specific cards.</p>
+      <div id="links"></div>
     </div>
-    <div id="links"></div>
-    <p class="hint">Each link holds its whole card, so nothing is stored on a server. Marks are saved in the player’s own browser.</p>
+
+    <div class="hint" id="shortnote" hidden>
+      <p><b>To make the short links work:</b> download <code>cards.json</code>, add it to the root of your repo next to <code>index.html</code>, and also add a copy of <code>index.html</code> named <code>404.html</code> (that’s what lets <code>/1</code> and <code>/play</code> work on GitHub Pages). Commit, wait a minute, and the links go live. Generating again replaces the old cards, so re-upload the file each time.</p>
+      <button class="alt" id="dl">Download cards.json</button>
+    </div>
+    <p class="hint">Marks are saved in each player’s own browser.</p>
   </div>
 </section>
 
@@ -120,7 +129,7 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
   function rnd(n){var a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n}
   function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(i+1),t=a[i];a[i]=a[j];a[j]=t}return a}
 
-  function dirPath(){var p=location.pathname;return /\/\d+\/?$/.test(p)?p.replace(/\d+\/?$/,""):p.replace(/[^/]*$/,"")}
+  function dirPath(){var p=location.pathname;return /\/(\d+|play)\/?$/.test(p)?p.replace(/(\d+|play)\/?$/,""):p.replace(/[^/]*$/,"")}
   function dirUrl(){return location.origin+dirPath()}
   function hash(str){var h=5381;for(var i=0;i<str.length;i++)h=((h<<5)+h+str.charCodeAt(i))|0;return (h>>>0).toString(36)}
   function baseUrl(){return location.href.split("#")[0]}
@@ -132,17 +141,19 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
   }
 
   // ---- generator ----
-  var links=[],cards=[];
+  var links=[],cards=[],deckObj=null;
   $("gen").onclick=function(){
     var err=$("err");err.textContent="";
     var n=+$("size").value,useFree=$("free").checked&&n%2===1;
     var items=Array.from(new Set(lines()));
     var need=n*n-(useFree?1:0);
-    var num=Math.max(1,Math.min(200,parseInt($("num").value,10)||1));
+    var num=Math.max(0,Math.min(200,parseInt($("num").value,10)||0));
     if(items.length<need){err.textContent="Add at least "+need+" different squares ("+items.length+" so far).";return}
     var title=$("title").value.trim()||"Bingo";
     links=[];cards=[];
     var fl=$("freelabel").value.trim()||"Free",short=$("style").value==="short";
+    var deck={t:title,n:n,i:items,f:fl,u:useFree?1:0};deckObj=deck;
+    var rurl=short?dirUrl()+"play":baseUrl()+"#r="+enc(deck);
     for(var c=0;c<num;c++){
       var pick=shuffle(items).slice(0,need),cells=[];
       for(var i=0;i<n*n;i++){
@@ -151,23 +162,26 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
       var cd={t:title,n:n,c:cells,f:fl};cards.push(cd);
       links.push(short?dirUrl()+(c+1):baseUrl()+"#"+enc(cd));
     }
-    $("shortnote").hidden=!short;$("dl").hidden=!short;
+    $("shortnote").hidden=!short;
+    $("rlink").innerHTML="";addRow($("rlink"),"",rurl,"Random card link");
     var box=$("links");box.innerHTML="";
-    links.forEach(function(u,i){
-      var d=document.createElement("div");d.className="link";
-      var b=document.createElement("b");b.textContent=(i+1);
-      var inp=document.createElement("input");inp.type="text";inp.readOnly=true;inp.value=u;
-      inp.setAttribute("aria-label","Link for card "+(i+1));
-      inp.onfocus=function(){inp.select()};
-      var cp=document.createElement("button");cp.className="alt";cp.textContent="Copy";
-      cp.onclick=function(){copy(u,cp)};
-      var a=document.createElement("a");a.href=u;a.target="_blank";a.rel="noopener";a.textContent="Preview";
-      d.append(b,inp,cp,a);box.appendChild(d);
-    });
-    $("rcount").textContent=num+(num===1?" card ready":" cards ready");
+    links.forEach(function(u,i){addRow(box,i+1,u,"Link for card "+(i+1))});
+    $("indiv").hidden=!num;
+    $("rcount").textContent=num+(num===1?" individual card":" individual cards");
     $("results").hidden=false;
     $("results").scrollIntoView({behavior:"smooth"});
   };
+  function addRow(box,label,u,aria){
+    var d=document.createElement("div");d.className="link";
+    var b=document.createElement("b");b.textContent=label;
+    var inp=document.createElement("input");inp.type="text";inp.readOnly=true;inp.value=u;
+    inp.setAttribute("aria-label",aria);
+    inp.onfocus=function(){inp.select()};
+    var cp=document.createElement("button");cp.className="alt";cp.textContent="Copy";
+    cp.onclick=function(){copy(u,cp)};
+    var a=document.createElement("a");a.href=u;a.target="_blank";a.rel="noopener";a.textContent="Preview";
+    d.append(b,inp,cp,a);box.appendChild(d);
+  }
   function copy(text,btn){
     var done=function(){var o=btn.textContent;btn.textContent="Copied";setTimeout(function(){btn.textContent=o},1200)};
     if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,function(){fallback(text,done)})}
@@ -179,7 +193,7 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
   }
   $("dl").onclick=function(){
     var a=document.createElement("a");
-    a.href=URL.createObjectURL(new Blob([JSON.stringify(cards)],{type:"application/json"}));
+    a.href=URL.createObjectURL(new Blob([JSON.stringify({deck:deckObj,cards:cards})],{type:"application/json"}));
     a.download="cards.json";document.body.appendChild(a);a.click();a.remove();
   };
   $("copyall").onclick=function(){copy(links.map(function(u,i){return "Card "+(i+1)+": "+u}).join("\n"),$("copyall"))};
@@ -205,14 +219,31 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
     }
     $("banner").textContent=won.length?"Bingo!":"";
   }
-  function shortId(){var h=location.hash.slice(1);if(/^\d+$/.test(h))return h;var m=location.pathname.match(/\/(\d+)\/?$/);return m?m[1]:null}
+  function shortId(){var h=location.hash.slice(1);if(/^(\d+|play)$/.test(h))return h;var m=location.pathname.match(/\/(\d+|play)\/?$/);return m?m[1]:null}
+  function deal(d){
+    var k="bingo:deal:"+hash(JSON.stringify(d));
+    try{var v=JSON.parse(localStorage.getItem(k));if(v&&v.c)return v}catch(e){}
+    var n=d.n,free=d.u&&n%2===1,need=n*n-(free?1:0);
+    if(!Array.isArray(d.i)||d.i.length<need)throw 0;
+    var pick=shuffle(d.i).slice(0,need),cells=[];
+    for(var i=0;i<n*n;i++)cells.push(free&&i===(n*n-1)/2?null:pick.shift());
+    var c={t:d.t,n:n,c:cells,f:d.f};
+    try{localStorage.setItem(k,JSON.stringify(c))}catch(e){}
+    return c;
+  }
   function showMake(msg){$("play").hidden=true;$("make").hidden=false;$("err").textContent=msg||""}
   function showPlay(){
     var id=shortId();
     if(id){
       fetch(dirPath()+"cards.json").then(function(r){if(!r.ok)throw 0;return r.json()})
-        .then(function(arr){var c=arr[+id-1];if(!c)throw 0;start(c,"s"+id)})
-        .catch(function(){showMake("Card "+id+" wasn’t found. Make sure cards.json is uploaded.")});
+        .then(function(data){
+          if(id==="play")return start(deal(data.deck),"play");
+          var c=data.cards[+id-1];if(!c)throw 0;start(c,"s"+id)})
+        .catch(function(){showMake("That card wasn’t found. Make sure cards.json is uploaded.")});
+      return;
+    }
+    if(location.hash.slice(1,3)==="r="){
+      try{start(deal(dec(location.hash.slice(3))),"r")}catch(e){showMake("That link looks broken. Ask for a new one.")}
       return;
     }
     var c=null;try{c=dec(location.hash.slice(1))}catch(e){}
