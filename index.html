@@ -37,7 +37,7 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
 .link a{font-size:.9rem;color:var(--muted)}
 .grid{display:grid;gap:6px;margin:20px 0;grid-auto-rows:minmax(var(--rh,64px),auto)}
 .cell{min-width:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px;font-size:clamp(.65rem,2.6vw,.95rem);line-height:1.15;font-weight:600;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:10px;overflow-wrap:break-word;hyphens:manual;user-select:none}
-.t{display:block;max-width:100%}
+.t{display:block;width:100%;min-width:0}
 .cell.free{background:var(--free);color:var(--free-ink);border-color:var(--free)}
 .cell[aria-pressed=true]{background:var(--daub);color:var(--daub-ink);border-color:var(--daub);transform:scale(.96)}
 .cell.win{box-shadow:0 0 0 3px var(--ink)}
@@ -54,7 +54,7 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
 <main>
 
 <section id="make">
-  <h1>Bingo Card Generator</h1>
+  <h1>Bingo card generator</h1>
   <p class="lead">Add your squares, pick how many cards you need, and send each person their own link.</p>
 
   <label for="title">Card title</label>
@@ -303,7 +303,7 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
     board.style.gridTemplateColumns="repeat("+card.n+",minmax(0,1fr))";
     card.c.forEach(function(txt,i){
       var b=document.createElement("button");b.type="button";b.className="cell"+(txt===null?" free":"");
-      var sp=document.createElement("span");sp.className="t";sp.textContent=txt===null?(card.f||"Free"):String(txt);b.appendChild(sp);
+      var sp=document.createElement("span");sp.className="t";sp.textContent=(txt===null?(card.f||"Free"):String(txt)).replace(/\//g,"/\u200b");b.appendChild(sp);
       if(txt===null)marks[i]=true;
       b.onclick=function(){if(txt===null)return;marks[i]=!marks[i];save();render()};
       board.appendChild(b);
@@ -315,11 +315,17 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
     var board=$("board");if(!card||$("play").hidden||!board.clientWidth)return;
     var n=card.n,gap=6,rh=(board.clientWidth-(n-1)*gap)/n;
     board.style.setProperty("--rh",rh+"px");
-    var cells=board.children,max=Math.min(18,rh*.19),min=10,pad=12;
+    var cells=board.children,max=Math.min(18,rh*.19),pad=12;
     for(var i=0;i<cells.length;i++){
       var c=cells[i],sp=c.firstChild,size=max;
-      c.style.fontSize=size+"px";
-      while(size>min&&(sp.offsetHeight>rh-pad||sp.scrollWidth>sp.clientWidth+1)){size-=.5;c.style.fontSize=size+"px"}
+      sp.style.overflowWrap="normal";c.style.fontSize=size+"px";
+      // 1) shrink until the longest word fits on one line (down to 8px)
+      while(size>8&&sp.scrollWidth>sp.clientWidth+1){size-=.5;c.style.fontSize=size+"px"}
+      // last resort: allow breaking inside a word
+      if(sp.scrollWidth>sp.clientWidth+1)sp.style.overflowWrap="break-word";
+      // 2) shrink for height, but not below 10px (rows grow instead)
+      var floor=Math.min(10,size);
+      while(size>floor&&sp.offsetHeight>rh-pad){size-=.5;c.style.fontSize=size+"px"}
     }
   }
   window.addEventListener("resize",fit);
