@@ -35,8 +35,9 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
 .link b{min-width:2.2em}
 .link input{flex:1;min-width:0;font-size:.85rem;padding:8px 10px}
 .link a{font-size:.9rem;color:var(--muted)}
-.grid{display:grid;gap:6px;margin:20px 0}
-.cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;text-align:center;padding:4px;font-size:clamp(.65rem,2.6vw,.95rem);line-height:1.15;font-weight:600;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:10px;overflow-wrap:anywhere;hyphens:auto;user-select:none}
+.grid{display:grid;gap:6px;margin:20px 0;grid-auto-rows:minmax(var(--rh,64px),auto)}
+.cell{min-width:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px;font-size:clamp(.65rem,2.6vw,.95rem);line-height:1.15;font-weight:600;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:10px;overflow-wrap:break-word;hyphens:manual;user-select:none}
+.t{display:block;max-width:100%}
 .cell.free{background:var(--free);color:var(--free-ink);border-color:var(--free)}
 .cell[aria-pressed=true]{background:var(--daub);color:var(--daub-ink);border-color:var(--daub);transform:scale(.96)}
 .cell.win{box-shadow:0 0 0 3px var(--ink)}
@@ -299,16 +300,30 @@ button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
     var saved=load();
     marks=saved||card.c.map(function(x){return x===null});
     var board=$("board");board.innerHTML="";
-    board.style.gridTemplateColumns="repeat("+card.n+",1fr)";
+    board.style.gridTemplateColumns="repeat("+card.n+",minmax(0,1fr))";
     card.c.forEach(function(txt,i){
       var b=document.createElement("button");b.type="button";b.className="cell"+(txt===null?" free":"");
-      b.textContent=txt===null?(card.f||"Free"):String(txt);
+      var sp=document.createElement("span");sp.className="t";sp.textContent=txt===null?(card.f||"Free"):String(txt);b.appendChild(sp);
       if(txt===null)marks[i]=true;
       b.onclick=function(){if(txt===null)return;marks[i]=!marks[i];save();render()};
       board.appendChild(b);
     });
-    render();
+    render();fit();
   }
+  // Shrink text so it fits a square cell; if it still can't, the row grows instead of overflowing.
+  function fit(){
+    var board=$("board");if(!card||$("play").hidden||!board.clientWidth)return;
+    var n=card.n,gap=6,rh=(board.clientWidth-(n-1)*gap)/n;
+    board.style.setProperty("--rh",rh+"px");
+    var cells=board.children,max=Math.min(18,rh*.19),min=10,pad=12;
+    for(var i=0;i<cells.length;i++){
+      var c=cells[i],sp=c.firstChild,size=max;
+      c.style.fontSize=size+"px";
+      while(size>min&&(sp.offsetHeight>rh-pad||sp.scrollWidth>sp.clientWidth+1)){size-=.5;c.style.fontSize=size+"px"}
+    }
+  }
+  window.addEventListener("resize",fit);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
   $("newcard").onclick=function(){$("newcard").hidden=true;$("confirmbox").hidden=false;$("no").focus()};
   $("no").onclick=function(){$("confirmbox").hidden=true;$("newcard").hidden=false;$("newcard").focus()};
   $("yes").onclick=function(){
